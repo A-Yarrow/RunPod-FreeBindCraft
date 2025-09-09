@@ -32,7 +32,7 @@ RUN conda install -y -n base -c conda-forge mamba && \
     conda clean -afy
 
 # 5 Clone BindCraft RunPod repo (always no PyRosetta)
-RUN git clone --branch dev --single-branch https://github.com/A-Yarrow/bindcraft-runpod.git /app/bindcraft
+RUN git clone --branch runpod-ui --single-branch https://github.com/A-Yarrow/RunPod-FreeBindCraft.git /app/bindcraft
 
 WORKDIR /app/bindcraft
 
