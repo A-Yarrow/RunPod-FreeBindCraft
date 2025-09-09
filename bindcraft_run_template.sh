@@ -37,7 +37,7 @@ trap cleanup EXIT INT TERM
 if [ "$ENV" = "DEV" ]; then
     python_cmd="python -u $dummy_run_python_file"
 elif [ "$ENV" = "PROD" ]; then
-    python_cmd="python -u /app/bindcraft/bindcraft.py \
+    python_cmd="python -u /app/bindcraft/bindcraft.py --no-pyrosetta \
     --settings "$TARGET_FILE_PATH" \
     --filters "$FILTERS_FILE_PATH" \
     --advanced "$ADVANCED_FILE_PATH" \
