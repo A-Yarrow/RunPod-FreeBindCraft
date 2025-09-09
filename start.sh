@@ -93,7 +93,6 @@ nvidia-smi
 
 echo "[INFO] CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
-#!/bin/bash
 echo "[INFO]======CHECKING JAX INSTALLATION========="
 python - <<'END'
 import jax, sys
@@ -104,40 +103,6 @@ if not gpu_devices:
 print("JAX GPU devices detected:", gpu_devices)
 END
 echo -e "GPU-enabled JAX verification complete\n"
-
-# PyRosetta Install
-
-if ! python -c "import pyrosetta" >/dev/null 2>&1; then
-    echo "[STEP] PyRosetta not installed. Installing..."
-
-  if [ ! -f "$PYROSETTA_PACKAGE_PATH" ]; then
-    echo "[STEP] Downloading PyRosetta package..."
-    cd "$PYROSETTA_PACKAGE_DIR"
-    wget -nc -O "$PYROSETTA_PACKAGE_NAME" "$PYROSETTA_PACKAGE_URL" || {
-      echo "[FAIL] Failed to download PyRosetta" | tee -a "$LOG_FILE"
-      exit 1
-    }
-  else
-    echo "[INFO] PyRosetta package already exists at $PYROSETTA_PACKAGE_DIR/$PYROSETTA_PACKAGE_NAME"
-  fi
-
-  #Install Package
-  echo "[STEP] Installing PyRosetta (offline)..."
-  mamba install -y "$PYROSETTA_PACKAGE_DIR/$PYROSETTA_PACKAGE_NAME" --offline || {
-  echo "[FAIL] Failed to install PyRosetta" | tee -a "$LOG_FILE"
-  exit 1
-  }
-
-  echo "[STEP] Verifying PyRosetta..."
-  if python -c "import pyrosetta; pyrosetta.init()" >/dev/null 2>&1; then
-    echo "[SUCCESS] PyRosetta import and init successful!"
-  else
-    echo "[FAIL] PyRosetta import failed" | tee -a "$LOG_FILE"
-    exit 1
-  fi
-else 
-  echo "[INFO] PyRosetta is allready installed."
-fi
 
 # AlphaFold Weights Download and Extraction
 if [ ! -f "$ALPHAFOLD_WEIGHTS_FILE" ]; then
@@ -231,8 +196,6 @@ c.ServerProxy.servers = {
         }
     }
 }
-}
-
 
 # Password protection
 c.ServerApp.identity_provider_class = "jupyter_server.auth.identity.PasswordIdentityProvider"
