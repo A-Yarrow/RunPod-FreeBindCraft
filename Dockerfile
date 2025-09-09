@@ -1,82 +1,55 @@
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+# 1 Base image optimized for JAX on CUDA 12.1 (works on RTX6000, L40, L40S, A40)
+FROM nvcr.io/nvidia/jax:23.08-py3
+# For A100 with cuda 11.8 use:
+# FROM nvcr.io/nvidia/jax:23.08-cuda11.8-py3
 
-LABEL org.opencontainers.image.source="https://github.com/cytokineking/FreeBindCraft"
-LABEL org.opencontainers.image.description="FreeBindCraft GPU (no PyRosetta)"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.source="https://github.com/A-Yarrow/bindcraft-runpod.git"
+LABEL org.opencontainers.image.description="BindCraft GPU (RunPod UI, no PyRosetta)"
+LABEL maintainer="Yarrow Madrona <yarrowmadrona@gmail.com>"
 
-ENV DEBIAN_FRONTEND=noninteractive \
-    TZ=Etc/UTC
+# 2 OS dependencies + OpenCL tools for GPU registration
+RUN apt-get update && apt-get install -y \
+    wget \
+    vim \
+    rsync \
+    git \
+    libgfortran5 \
+    ca-certificates \
+    clinfo \
+    ocl-icd-opencl-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# OS dependencies
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-      bash \
-      ca-certificates \
-      curl \
-      git \
-      rsync \
-      libgfortran5 \
-      tmux \
-      wget \
-      build-essential \
-      pkg-config \
-      procps \
-      unzip && \
-    rm -rf /var/lib/apt/lists/*
+# 3 Install Miniconda (lighter than Miniforge3)
+ENV CONDA_DIR=/opt/conda
+ENV PATH=$CONDA_DIR/bin:$PATH
+RUN wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O miniforge.sh && \
+    bash miniforge.sh -b -p $CONDA_DIR && \
+    rm miniforge.sh
 
-# Install OpenCL ICD loader and tools; register NVIDIA OpenCL ICD
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ocl-icd-libopencl1 clinfo && \
-    rm -rf /var/lib/apt/lists/*
-RUN mkdir -p /etc/OpenCL/vendors && \
-    echo "libnvidia-opencl.so.1" > /etc/OpenCL/vendors/nvidia.icd
-
-# Install Miniforge (Conda) at /miniforge3
-ENV CONDA_DIR=/miniforge3
-RUN wget -q https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh -O /tmp/miniforge.sh && \
-    bash /tmp/miniforge.sh -b -p ${CONDA_DIR} && \
-    rm -f /tmp/miniforge.sh
-
-# Put conda on PATH
-ENV PATH=${CONDA_DIR}/bin:${PATH}
-
-# Improve conda robustness and cleanup
-RUN conda config --set channel_priority strict && \
-    conda config --set always_yes yes && \
-    conda update -n base -c conda-forge conda && \
+# 4 Set up Conda and Mamba
+RUN conda install -y -n base -c conda-forge mamba && \
     conda clean -afy
 
-# Create workdir and copy project
-WORKDIR /app
-COPY . /app
+# 5 Clone BindCraft RunPod repo (always no PyRosetta)
+RUN git clone --branch dev --single-branch https://github.com/A-Yarrow/bindcraft-runpod.git /app/bindcraft
 
-# Ensure helper binaries are executable (also handled by installer)
-RUN chmod +x /app/functions/dssp || true && \
-    chmod +x /app/functions/sc || true
+WORKDIR /app/bindcraft
 
-# Build environment and download AF2 weights without PyRosetta
-# Match CUDA to base image; installer pins jax/jaxlib=0.6.0
-# Allow toggling PyRosetta install at build-time
-ARG WITH_PYROSETTA=false
-ENV WITH_PYROSETTA=${WITH_PYROSETTA}
-RUN bash -lc 'source ${CONDA_DIR}/etc/profile.d/conda.sh && \
-    EXTRA=""; if [ "${WITH_PYROSETTA}" != "true" ]; then EXTRA="--no-pyrosetta"; fi; \
-    bash /app/install_bindcraft.sh --pkg_manager conda --cuda 12.1 ${EXTRA}'
+# 6 Install BindCraft (install_bindcraft.sh should exclude PyRosetta logic)
+RUN chmod +x install_bindcraft.sh && \
+    bash install_bindcraft.sh --no-pyrosetta || true
 
-# Default environment
-ENV PATH=${CONDA_DIR}/envs/BindCraft/bin:${CONDA_DIR}/bin:${PATH} \
-    LD_LIBRARY_PATH=${CONDA_DIR}/envs/BindCraft/lib:${LD_LIBRARY_PATH} \
-    PYTHONUNBUFFERED=1 \
-    BINDCRAFT_HOME=/app
+# 7 Set permissions on startup script and notebook
+RUN chmod 755 /app/bindcraft/start.sh && \
+    chmod 644 /app/bindcraft/bindcraft-runpod-start.ipynb
 
-# Prefer OpenCL (fallback to CUDA) in OpenMM by default
-ENV OPENMM_PLATFORM_ORDER=OpenCL,CUDA \
-    OPENMM_DEFAULT_PLATFORM=OpenCL
+# 8 JAX / CUDA runtime settings
+ENV XLA_PYTHON_CLIENT_MEM_FRACTION=0.8
+ENV XLA_FLAGS="--xla_gpu_enable_command_buffer=false"
 
-# Modal-compatible entrypoint that execs args
-COPY docker-entrypoint.sh /usr/local/bin/bindcraft-entrypoint.sh
-RUN chmod +x /usr/local/bin/bindcraft-entrypoint.sh
-ENTRYPOINT ["/usr/local/bin/bindcraft-entrypoint.sh"]
+# 9 Jupyter port
+EXPOSE 8888
 
-# Default command prints help
-CMD ["python", "bindcraft.py", "--help"]
+# 10 Default startup
+CMD ["/app/bindcraft/start.sh"]
