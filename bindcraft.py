@@ -18,6 +18,17 @@ try:
 except Exception:
     resource = None
 
+# Logging configuration
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+# direct logs to console and file. Bash will capture this and write to log file
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+# Add handlers to logger
+logger.addHandler(stream_handler) 
+
 # overwrite main logger to include CPU/GPU usage
 # --- Helpers ---
 def get_cpu_usage():
