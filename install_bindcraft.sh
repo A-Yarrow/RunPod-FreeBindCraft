@@ -46,21 +46,24 @@ $pkg_manager install \
 echo "Installing pip packages"
 python -m pip install --upgrade pip wheel jupyter-server-proxy
 
-# JAX install pinned to match FreeBindCraft stability
 if [ "$CUDA_VERSION" = "12.1" ]; then
     python -m pip install --no-cache-dir \
-      jax==0.6.0 \
-      jaxlib==0.6.0+cuda12.cudnn89 \
+      jax==0.4.28 \
+      jaxlib==0.4.28+cuda12.cudnn89 \
       -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --no-deps
+
 elif [ "$CUDA_VERSION" = "11.8" ]; then
-    python -m pip install --no-cache-dir \
-      jax==0.6.0 \
-      jaxlib==0.6.0+cuda11.cudnn86 \
-      -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --no-deps
+python -m pip install --no-cache-dir \
+  jax==0.4.20 \
+  jaxlib==0.4.20+cuda11.cudnn86 \
+  -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html --no-deps
+
 else
     echo "[WARN] Unsupported CUDA version for JAX installation"
 fi
 
+# install nvidia-ml-py3 for GPU monitoring
+python -m pip install nvidia-ml-py3
 ############################################################################################################
 ################## Install ColabDesign
 # install ColabDesign
