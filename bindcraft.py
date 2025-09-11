@@ -4,6 +4,9 @@
 ### Import dependencies
 import gc
 from functions import *
+from main_UI import logger
+import psutil
+import pynvml
 from functions.generic_utils import insert_data # Explicit import for insert_data
 from functions.biopython_utils import clear_dssp_cache # Explicit import for DSSP cache management
 import logging
@@ -14,6 +17,28 @@ try:
     import resource  # POSIX-only; used to raise RLIMIT_NOFILE (ulimit -n)
 except Exception:
     resource = None
+
+# overwrite main logger to include CPU/GPU usage
+# --- Helpers ---
+def get_cpu_usage():
+    return psutil.cpu_percent(interval=None)
+
+def get_gpu_usage():
+    try:
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+        return util.gpu
+    except Exception:
+        return "N/A"
+
+# --- Patch logger.info ---
+_original_info = logger.info
+def _info_with_usage(msg, *args, **kwargs):
+    usage_info = f"[CPU: {get_cpu_usage()}% | GPU: {get_gpu_usage()}%]"
+    return _original_info(f"{usage_info} {msg}", *args, **kwargs)
+
+logger.info = _info_with_usage
 
 def _bump_open_files_limit(min_soft=65536):
     """Attempt to raise the soft RLIMIT_NOFILE up to min_soft (not above hard)."""
