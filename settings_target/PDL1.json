@@ -1,5 +1,5 @@
 {
-    "design_path": "/root/software/pdl1/",
+    "design_path": "/workspace/outputs/PDL1/",
     "binder_name": "PDL1",
     "starting_pdb": "./example/PDL1.pdb",
     "chains": "A",
