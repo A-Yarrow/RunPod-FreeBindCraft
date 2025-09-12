@@ -4,7 +4,6 @@
 ### Import dependencies
 import gc
 from functions import *
-from main_UI import logger
 import psutil
 import pynvml
 from functions.generic_utils import insert_data # Explicit import for insert_data
@@ -28,7 +27,7 @@ stream_handler = logging.StreamHandler()
 stream_handler.setFormatter(formatter)
 # Add handlers to logger
 logger.addHandler(stream_handler) 
-
+logger.info("Starting FreeBindCraft run...")  
 # overwrite main logger to include CPU/GPU usage
 # --- Helpers ---
 def get_cpu_usage():
@@ -545,6 +544,10 @@ else:
     else:
         print("PyRosetta not found. Using OpenMM and Biopython routines.")
 
+logger.info(f"Running binder design for target {settings_file}")
+logger.info(f"Design settings used: {advanced_file}")
+logger.info(f"Filtering designs based on {filters_file}")
+
 # Ensure binaries are executable with correct PyRosetta mode
 ensure_binaries_executable(use_pyrosetta=use_pyrosetta)
 
@@ -593,6 +596,7 @@ while True:
     trajectory_exists = any(os.path.exists(os.path.join(design_paths[trajectory_dir], design_name + ".pdb")) for trajectory_dir in trajectory_dirs)
 
     if not trajectory_exists:
+        logger.info("Starting trajectory: "+design_name)
         print("Starting trajectory: "+design_name)
 
         ### Begin binder hallucination
@@ -608,21 +612,34 @@ while True:
         # time trajectory
         trajectory_time = time.time() - trajectory_start_time
         trajectory_time_text = f"{'%d hours, %d minutes, %d seconds' % (int(trajectory_time // 3600), int((trajectory_time % 3600) // 60), int(trajectory_time % 60))}"
-        print("Starting trajectory took: "+trajectory_time_text)
-        print("")
+        logger.info("Starting trajectory took: "+trajectory_time_text)
+        logger.info("")
 
         # Proceed if there is no trajectory termination signal
         if trajectory.aux["log"]["terminate"] == "":
             # Relax binder to calculate statistics
+            pr_relax_time = time.time()
             trajectory_relaxed = os.path.join(design_paths["Trajectory/Relaxed"], design_name + ".pdb")
             pr_relax(trajectory_pdb, trajectory_relaxed, use_pyrosetta=use_pyrosetta)
+            pr_relax_time = time.time() - pr_relax_time
+            pr_relax_time_text = f"{'%d hours, %d minutes, %d seconds' % (int(pr_relax_time // 3600), int((pr_relax_time % 3600) // 60), int(pr_relax_time % 60))}"
+            logger.info("Relaxing trajectory structure took: "+pr_relax_time_text)
+            logger.info("")
 
             # define binder chain, placeholder in case multi-chain parsing in ColabDesign gets changed
             binder_chain = "B"
 
             # Calculate clashes before and after relaxation
+            logger.info("Calculating clash scores...")
+            clash_calc_time = time.time()
             num_clashes_trajectory = calculate_clash_score(trajectory_pdb)
             num_clashes_relaxed = calculate_clash_score(trajectory_relaxed)
+            clash_calc_time = time.time() - clash_calc_time
+            clash_calc_time_text = f"{'%d hours, %d minutes, %d seconds' % (int(clash_calc_time // 3600), int((clash_calc_time % 3600) // 60), int(clash_calc_time % 60))}"
+            logger.info("Calculating clash scores took: "+clash_calc_time_text)
+            logger.info(f"Number of clashes in unrelaxed trajectory: {num_clashes_trajectory}")
+            logger.info(f"Number of clashes in relaxed trajectory: {num_clashes_relaxed}")
+            logger.info("")
 
             # secondary structure content of starting trajectory binder and interface
             trajectory_alpha, trajectory_beta, trajectory_loops, trajectory_alpha_interface, trajectory_beta_interface, trajectory_loops_interface, trajectory_i_plddt, trajectory_ss_plddt = calc_ss_percentage(trajectory_pdb, advanced_settings, binder_chain)
